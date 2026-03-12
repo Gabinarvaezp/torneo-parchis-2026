@@ -5,21 +5,29 @@ DATA_PATH = "data"
 RESULTS_FILE = os.path.join(DATA_PATH, "resultados.csv")
 
 
+# ============================================================
+# REGISTRAR GANADOR
+# ============================================================
+
 def registrar_ganador(grupo, fila, ganador):
 
     grupo_file = os.path.join(DATA_PATH, f"grupo_{grupo}.csv")
 
     if not os.path.exists(grupo_file):
-        return
+        return False, "No existe el archivo del grupo."
 
     df = pd.read_csv(grupo_file)
+
+    # asegurar columna Estado
+    if "Estado" not in df.columns:
+        df["Estado"] = "pendiente"
 
     id1 = fila["ID Grupo 1"]
     id2 = fila["ID Grupo 2"]
 
     partido = f"{id1} vs {id2}"
 
-    # actualizar estado en tabla
+    # actualizar estado
     if ganador == id1:
 
         df.loc[
@@ -28,12 +36,6 @@ def registrar_ganador(grupo, fila, ganador):
             "Estado"
         ] = "ganó"
 
-        df.loc[
-            (df["ID Grupo 1"] == id2) &
-            (df["ID Grupo 2"] == id1),
-            "Estado"
-        ] = "eliminado"
-
     else:
 
         df.loc[
@@ -42,15 +44,12 @@ def registrar_ganador(grupo, fila, ganador):
             "Estado"
         ] = "eliminado"
 
-        df.loc[
-            (df["ID Grupo 1"] == id2) &
-            (df["ID Grupo 2"] == id1),
-            "Estado"
-        ] = "ganó"
-
     df.to_csv(grupo_file, index=False)
 
-    # guardar historial de resultados
+    # ============================================================
+    # HISTORIAL RESULTADOS
+    # ============================================================
+
     if not os.path.exists(RESULTS_FILE):
 
         resultados = pd.DataFrame(
@@ -59,7 +58,12 @@ def registrar_ganador(grupo, fila, ganador):
 
     else:
 
-        resultados = pd.read_csv(RESULTS_FILE)
+        try:
+            resultados = pd.read_csv(RESULTS_FILE)
+        except pd.errors.EmptyDataError:
+            resultados = pd.DataFrame(
+                columns=["grupo", "partido", "ganador"]
+            )
 
     nuevo = pd.DataFrame([{
         "grupo": grupo,
@@ -74,13 +78,23 @@ def registrar_ganador(grupo, fila, ganador):
 
     resultados.to_csv(RESULTS_FILE, index=False)
 
+    return True, "Ganador registrado correctamente."
+
+
+# ============================================================
+# CORREGIR RESULTADO
+# ============================================================
 
 def corregir_ganador(grupo, partido, nuevo_ganador):
 
     if not os.path.exists(RESULTS_FILE):
         return False, "No hay resultados aún."
 
-    resultados = pd.read_csv(RESULTS_FILE)
+    try:
+        resultados = pd.read_csv(RESULTS_FILE)
+
+    except pd.errors.EmptyDataError:
+        return False, "El archivo de resultados está vacío."
 
     mask = (
         (resultados["grupo"] == grupo) &
@@ -94,4 +108,4 @@ def corregir_ganador(grupo, partido, nuevo_ganador):
 
     resultados.to_csv(RESULTS_FILE, index=False)
 
-    return True, "Resultado corregido."
+    return True, "Resultado corregido correctamente."
