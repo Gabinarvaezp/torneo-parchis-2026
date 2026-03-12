@@ -3,72 +3,101 @@ import os
 
 RESULTS_FILE = "data/resultados.csv"
 
-# ------------------------
-# Guardar resultado
-# ------------------------
-def register_winner(row, ganador_id):
-    """
-    row = una fila del DataFrame del grupo
-    ganador_id = ID del ganador (equipo 1 o equipo 2)
-    """
 
-    # Crear archivo resultados si no existe
+# ============================================================
+# ASEGURAR ARCHIVO DE RESULTADOS
+# ============================================================
+def _asegurar_archivo():
+    """Crea el archivo de resultados si no existe."""
     if not os.path.exists(RESULTS_FILE):
-        pd.DataFrame(columns=["grupo", "partido", "ganador", "perdedor"]).to_csv(RESULTS_FILE, index=False)
+        df = pd.DataFrame(columns=["grupo", "partido", "ganador", "perdedor"])
+        df.to_csv(RESULTS_FILE, index=False)
+
+
+# ============================================================
+# REGISTRAR GANADOR (LLAMADO DESDE app.py)
+# ============================================================
+def registrar_ganador(num_grupo, fila, ganador_id):
+    """
+    Guarda el resultado de un partido (ganador y perdedor).
+    fila = fila del DataFrame original del grupo.
+    ganador_id = ID del equipo ganador.
+    """
+    _asegurar_archivo()
 
     resultados = pd.read_csv(RESULTS_FILE)
 
     # Determinar perdedor
-    if ganador_id == row["ID Grupo 1"]:
-        perdedor = row["ID Grupo 2"]
-    else:
-        perdedor = row["ID Grupo 1"]
+    equipo1 = str(fila["ID Grupo 1"])
+    equipo2 = str(fila["ID Grupo 2"])
+    ganador_id = str(ganador_id)
+
+    perdedor = equipo2 if ganador_id == equipo1 else equipo1
 
     nuevo = {
-        "grupo": row["Grupo"],
-        "partido": f"{row['ID Grupo 1']} vs {row['ID Grupo 2']}",
+        "grupo": num_grupo,
+        "partido": f"{equipo1} vs {equipo2}",
         "ganador": ganador_id,
         "perdedor": perdedor
     }
 
-    # Guardar
-    resultados = pd.concat([resultados, pd.DataFrame([nuevo])], ignore_index=True)
-    resultados.to_csv(RESULTS_FILE, index=False)
+    # Evitar duplicados
+    existe = resultados[
+        (resultados["partido"] == nuevo["partido"]) &
+        (resultados["grupo"] == num_grupo)
+    ]
 
+    if not existe.empty:
+        # Si ya existía, reemplazarlo (actualizar)
+        resultados = resultados[
+            ~((resultados["partido"] == nuevo["partido"]) &
+              (resultados["grupo"] == num_grupo))
+        ]
+
+    # Guardar fila nueva
+    resultados = pd.concat(
+        [resultados, pd.DataFrame([nuevo])],
+        ignore_index=True
+    )
+
+    resultados.to_csv(RESULTS_FILE, index=False)
     return ganador_id, perdedor
 
 
-# ------------------------
-# CORREGIR GANADOR
-# ------------------------
-def correct_winner(grupo_num, partido, nuevo_ganador):
+# ============================================================
+# CORREGIR GANADOR (MUY IMPORTANTE)
+# ============================================================
+def corregir_ganador(num_grupo, partido_txt, nuevo_ganador):
     """
-    partido → string tipo '123 vs 456'
-    nuevo_ganador → nuevo ID ganador
+    Corrige un ganador si hubo error.
+    partido_txt = "851 vs 850"
+    nuevo_ganador = "851" (por ejemplo)
     """
-
-    if not os.path.exists(RESULTS_FILE):
-        return False, "No hay resultados guardados aún."
-
+    _asegurar_archivo()
     resultados = pd.read_csv(RESULTS_FILE)
 
-    # Buscar el partido
-    fila = resultados[resultados["partido"] == partido]
+    # Buscar registro
+    filtro = (resultados["partido"] == partido_txt) & (resultados["grupo"] == num_grupo)
+    fila = resultados[filtro]
 
     if fila.empty:
-        return False, "No encontramos ese partido."
+        return False, "No encontramos ese partido registrado."
 
-    viejo_ganador = fila["ganador"].values[0]
+    equipos = partido_txt.split(" vs ")
+    equipo1, equipo2 = equipos[0].strip(), equipos[1].strip()
 
-    # Determinar nuevo perdedor
-    ids = partido.split(" vs ")
-    equipo1, equipo2 = ids[0], ids[1]
+    nuevo_ganador = str(nuevo_ganador)
+
+    if nuevo_ganador not in [equipo1, equipo2]:
+        return False, "El ganador no coincide con ninguno de los equipos del partido."
+
+    # Nuevo perdedor
     nuevo_perdedor = equipo1 if nuevo_ganador == equipo2 else equipo2
 
-    # Actualizar fila
-    resultados.loc[resultados["partido"] == partido, "ganador"] = nuevo_ganador
-    resultados.loc[resultados["partido"] == partido, "perdedor"] = nuevo_perdedor
+    # Actualizar registro
+    resultados.loc[filtro, "ganador"] = nuevo_ganador
+    resultados.loc[filtro, "perdedor"] = nuevo_perdedor
 
     resultados.to_csv(RESULTS_FILE, index=False)
 
-    return True, f"Ganador corregido: antes {viejo_ganador}, ahora {nuevo_ganador}"
+    return True, f"Ganador corregido correctamente → {nuevo_ganador}"
