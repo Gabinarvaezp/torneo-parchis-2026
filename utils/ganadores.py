@@ -6,25 +6,44 @@ RESULTS_FILE = "data/resultados.csv"
 
 def registrar_ganador(grupo, fila, ganador):
 
-    # Si el archivo no existe o está vacío
-    if not os.path.exists(RESULTS_FILE) or os.stat(RESULTS_FILE).st_size == 0:
+    # crear archivo si no existe
+    if not os.path.exists(RESULTS_FILE):
+        df = pd.DataFrame(columns=["grupo", "partido", "ganador"])
+        df.to_csv(RESULTS_FILE, index=False)
 
-        resultados = pd.DataFrame(columns=[
-            "grupo",
-            "fila",
-            "ganador"
-        ])
-
-    else:
+    # cargar resultados
+    try:
         resultados = pd.read_csv(RESULTS_FILE)
+    except:
+        resultados = pd.DataFrame(columns=["grupo", "partido", "ganador"])
 
-    # agregar resultado
+    partido = f"{fila['ID Grupo 1']} vs {fila['ID Grupo 2']}"
+
     nuevo = pd.DataFrame([{
         "grupo": grupo,
-        "fila": fila,
+        "partido": partido,
         "ganador": ganador
     }])
 
     resultados = pd.concat([resultados, nuevo], ignore_index=True)
 
     resultados.to_csv(RESULTS_FILE, index=False)
+
+
+def corregir_ganador(grupo, partido, nuevo_ganador):
+
+    if not os.path.exists(RESULTS_FILE):
+        return False, "No hay resultados registrados aún."
+
+    resultados = pd.read_csv(RESULTS_FILE)
+
+    mask = (resultados["grupo"] == grupo) & (resultados["partido"] == partido)
+
+    if mask.sum() == 0:
+        return False, "Partido no encontrado."
+
+    resultados.loc[mask, "ganador"] = nuevo_ganador
+
+    resultados.to_csv(RESULTS_FILE, index=False)
+
+    return True, "Resultado corregido correctamente."
