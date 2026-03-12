@@ -4,13 +4,17 @@ import os
 from io import StringIO
 
 # ============================================================
-# CONFIGURACIÓN GENERAL DE LA APP
+# CONFIGURACIÓN GENERAL
 # ============================================================
 
 st.set_page_config(
     page_title="Torneo Parchís 2026",
-    layout="wide",
+    page_icon="🎲",
+    layout="wide"
 )
+
+DATA_PATH = "data"
+os.makedirs(DATA_PATH, exist_ok=True)
 
 PALETTE = {
     "primary": "#8C7AE6",
@@ -23,32 +27,33 @@ PALETTE = {
 }
 
 # ============================================================
-# ESTILOS PASTEL CORPORATIVOS
+# ESTILOS PASTEL
 # ============================================================
 
 st.markdown(
     f"""
-    <style>
-    .main {{
-        background-color: {PALETTE['neutral']};
-    }}
-    .stButton>button {{
-        background-color: {PALETTE['primary']};
-        color: white;
-        border-radius: 10px;
-        padding: 10px 30px;
-        font-size: 18px;
-    }}
-    .stTextInput>div>input {{
-        border-radius: 8px;
-        border: 2px solid {PALETTE['primary']};
-    }}
-    h1, h2, h3, h4 {{
-        color: {PALETTE['primary']};
-        font-weight: 600;
-    }}
-    </style>
-    """,
+<style>
+.main {{
+    background-color: {PALETTE['neutral']};
+}}
+
+.stButton>button {{
+    background-color: {PALETTE['primary']};
+    color:white;
+    border-radius:10px;
+    padding:10px 30px;
+    font-size:16px;
+}}
+
+h1,h2,h3,h4 {{
+    color:{PALETTE['primary']};
+}}
+
+.block-container {{
+    padding-top:2rem;
+}}
+</style>
+""",
     unsafe_allow_html=True
 )
 
@@ -64,58 +69,134 @@ from utils.excel_exporter import exportar_excel_grupo, exportar_excel_torneo
 from utils.estilos import estado_color
 from utils.validator import validar_tabla
 
-DATA_PATH = "data"
-os.makedirs(DATA_PATH, exist_ok=True)
+# ============================================================
+# FUNCIÓN PARA PEGAR EXCEL
+# ============================================================
+
+def leer_excel_pegado(texto):
+
+    try:
+
+        df = pd.read_csv(
+            StringIO(texto),
+            sep="\t"
+        )
+
+        df.columns = df.columns.str.strip()
+
+        return df
+
+    except Exception:
+
+        return None
 
 # ============================================================
-# PÁGINA DE CADA GRUPO
+# PÁGINA DE GRUPO
 # ============================================================
 
 def pagina_grupo(n_grupo):
 
     st.header(f"👥 Grupo {n_grupo}")
-    st.write("Pega la tabla EXACTA del Excel del Sábado 14. Nada de mover columnas.")
+
+    st.info(
+        "Pega la tabla copiada directamente desde Excel del Sábado 14."
+    )
 
     pasted = st.text_area(
-        f"Pega la tabla del Grupo {n_grupo}",
+        "📋 Pegar tabla aquí",
         height=250,
+        placeholder="Copia las filas desde Excel y pégalas aquí..."
     )
 
     if pasted:
-        try:
-            df = pd.read_csv(StringIO(pasted), sep="\t")
+
+        df = leer_excel_pegado(pasted)
+
+        if df is None:
+
+            st.error("No se pudo leer la tabla pegada.")
+
+        else:
 
             ok, msg = validar_tabla(df)
 
             if ok:
-                st.success("Tabla detectada correctamente.")
-                st.dataframe(df)
 
-                if st.button("💾 Guardar Tabla"):
+                st.success("Tabla detectada correctamente")
+
+                st.dataframe(
+                    df,
+                    use_container_width=True
+                )
+
+                if st.button("💾 Guardar Tabla del Grupo"):
+
                     guardar_grupo(n_grupo, df)
-                    st.success(f"Grupo {n_grupo} guardado.")
+
+                    st.success(
+                        f"Grupo {n_grupo} guardado correctamente"
+                    )
+
             else:
-                st.error(msg)
 
-        except:
-            st.error("Error al leer la tabla copiada. Asegúrate de pegarla EXACTA.")
+                st.warning(msg)
 
-    st.subheader("📊 Tabla Guardada del Grupo")
+    # ========================================================
+    # TABLA GUARDADA
+    # ========================================================
+
+    st.divider()
+
+    st.subheader("📊 Tabla Guardada")
 
     df = cargar_grupo(n_grupo)
 
     if df is not None:
-        st.dataframe(df.style.apply(estado_color, axis=1))
 
-    st.subheader("🏆 Registrar Ganador")
+        st.dataframe(
+            df.style.apply(estado_color, axis=1),
+            use_container_width=True
+        )
 
-    busqueda = st.text_input("Buscar por ID, nombre o usuario:")
+    else:
+
+        st.info("Aún no hay tabla guardada para este grupo.")
+
+    # ========================================================
+    # BUSCADOR DE PARTIDOS
+    # ========================================================
+
+    st.divider()
+
+    st.subheader("🔎 Buscar Partido")
+
+    busqueda = st.text_input(
+        "Buscar por ID, nombre o usuario"
+    )
 
     if busqueda and df is not None:
 
-        fil = df[df.apply(lambda r: busqueda.lower() in str(r).lower(), axis=1)]
+        fil = df[
+            df.apply(
+                lambda r: busqueda.lower() in str(r).lower(),
+                axis=1
+            )
+        ]
 
-        st.dataframe(fil)
+        if len(fil) == 0:
+
+            st.warning("No se encontraron coincidencias.")
+
+        else:
+
+            st.dataframe(
+                fil,
+                use_container_width=True
+            )
+
+        # ====================================================
+        # REGISTRAR GANADOR
+        # ====================================================
 
         if len(fil) == 1:
 
@@ -124,32 +205,71 @@ def pagina_grupo(n_grupo):
             e1 = fila["ID Grupo 1"]
             e2 = fila["ID Grupo 2"]
 
-            ganador = st.radio("Selecciona el ganador:", [e1, e2])
+            ganador = st.radio(
+                "Selecciona el ganador",
+                [e1, e2]
+            )
 
-            if st.button("Guardar Ganador"):
+            if st.button("🏆 Guardar Ganador"):
 
-                registrar_ganador(n_grupo, fila, ganador)
+                registrar_ganador(
+                    n_grupo,
+                    fila,
+                    ganador
+                )
 
-                st.success(f"Ganador guardado: {ganador}")
+                st.success(
+                    f"Ganador registrado: {ganador}"
+                )
 
-    st.subheader("🛠 Corregir Ganador")
+                st.rerun()
 
-    partido = st.text_input("Partido exacto: ej. '851 vs 850'")
-    nuevo_g = st.text_input("Nuevo ganador (ID exacto)")
+    # ========================================================
+    # CORREGIR RESULTADO
+    # ========================================================
+
+    st.divider()
+
+    st.subheader("🛠 Corregir Resultado")
+
+    partido = st.text_input(
+        "Partido exacto (ej: 851 vs 850)"
+    )
+
+    nuevo_g = st.text_input(
+        "Nuevo ganador (ID exacto)"
+    )
 
     if st.button("Corregir Resultado"):
 
-        ok, msg = corregir_ganador(n_grupo, partido, nuevo_g)
+        ok, msg = corregir_ganador(
+            n_grupo,
+            partido,
+            nuevo_g
+        )
 
         if ok:
+
             st.success(msg)
+
+            st.rerun()
+
         else:
+
             st.error(msg)
+
+    # ========================================================
+    # EXPORTAR EXCEL
+    # ========================================================
+
+    st.divider()
 
     st.subheader("📥 Descargar Excel del Grupo")
 
-    if st.button("Descargar Excel"):
+    if st.button("Exportar Excel Grupo"):
+
         exportar_excel_grupo(n_grupo)
+
         st.success("Excel generado en /data")
 
 # ============================================================
@@ -158,47 +278,37 @@ def pagina_grupo(n_grupo):
 
 def pagina_resumen():
 
-    st.header("📊 Resumen General del Torneo")
+    st.header("📊 Resumen del Torneo")
 
     grupos = cargar_todos()
 
     if not grupos:
-        st.warning("No hay datos cargados aún.")
+
+        st.warning("Aún no hay datos cargados")
+
         return
 
     cols = st.columns(5)
-    i = 0
 
-    for g, df in grupos.items():
+    for i, (g, df) in enumerate(grupos.items()):
 
         total = len(df)
-        gan = df[df["Estado"].str.contains("ganó", na=False)]
-        elim = df[df["Estado"].str.contains("eliminado", na=False)]
-        pend = df[df["Estado"].str.contains("pendiente", na=False)]
+
+        gan = df["Estado"].str.contains("ganó", na=False).sum()
+
+        elim = df["Estado"].str.contains("eliminado", na=False).sum()
+
+        pend = df["Estado"].str.contains("pendiente", na=False).sum()
 
         with cols[i]:
 
-            st.markdown(
-                f"""
-                <div style="
-                    background-color:{PALETTE['secondary']};
-                    padding:20px;
-                    border-radius:12px;
-                    color:white;
-                    text-align:center;">
-                    <h3>Grupo {g}</h3>
-                    <p><b>Total:</b> {total}</p>
-                    <p><b>Ganadores:</b> {len(gan)}</p>
-                    <p><b>Eliminados:</b> {len(elim)}</p>
-                    <p><b>Pendientes:</b> {len(pend)}</p>
-                </div>
-                """,
-                unsafe_allow_html=True
+            st.metric(
+                f"Grupo {g}",
+                total,
+                f"{gan} ganadores"
             )
 
-        i = (i + 1) % 5
-
-    st.subheader("📈 Avance por Grupo")
+    st.divider()
 
     rows = []
 
@@ -214,17 +324,23 @@ def pagina_resumen():
     st.dataframe(
         pd.DataFrame(
             rows,
-            columns=["Grupo", "Total", "Ganadores", "Eliminados"]
-        )
+            columns=[
+                "Grupo",
+                "Total",
+                "Ganadores",
+                "Eliminados"
+            ]
+        ),
+        use_container_width=True
     )
 
-    st.subheader("📥 Descargar Todo el Torneo")
+    st.divider()
 
-    if st.button("Exportar Excel Total"):
+    if st.button("📥 Exportar Excel Torneo Completo"):
 
         exportar_excel_torneo()
 
-        st.success("TorneoCompleto.xlsx generado en /data")
+        st.success("Excel generado en /data")
 
 # ============================================================
 # AJUSTES
@@ -234,11 +350,24 @@ def pagina_ajustes():
 
     st.header("⚙ Ajustes del Torneo")
 
-    max_partidos = st.slider("Máximo partidos por franja (ideal 20)", 10, 25, 20)
+    max_partidos = st.slider(
+        "Máximo partidos por franja",
+        10,
+        25,
+        20
+    )
 
-    descanso = st.slider("Descanso mínimo entre partidos (horas)", 1, 3, 2)
+    descanso = st.slider(
+        "Descanso mínimo (horas)",
+        1,
+        3,
+        2
+    )
 
-    extendidos = st.checkbox("Usar horarios extendidos?", value=True)
+    extendidos = st.checkbox(
+        "Activar horarios extendidos",
+        value=True
+    )
 
     if st.button("Guardar Ajustes"):
 
@@ -253,10 +382,10 @@ def pagina_ajustes():
             orient="records"
         )
 
-        st.success("Ajustes guardados correctamente.")
+        st.success("Ajustes guardados")
 
 # ============================================================
-# RUTEO PRINCIPAL
+# MENÚ PRINCIPAL
 # ============================================================
 
 st.title("🎲 Torneo Parchís 2026")
@@ -287,7 +416,3 @@ elif menu == "Resumen del Torneo":
 elif menu == "Ajustes":
 
     pagina_ajustes()
-
-else:
-
-    st.write("Selecciona una opción del menú.")
