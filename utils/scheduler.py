@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 # ============================================================
 # HORARIOS OFICIALES DEL TORNEO
 # ============================================================
@@ -18,12 +19,15 @@ MAX_PARTIDOS_LIMITE = 25
 
 
 # ============================================================
-# ASIGNAR HORARIOS
+# ASIGNAR HORARIOS A UNA RONDA
 # ============================================================
 
 def asignar_horarios(df_ronda, historial=None):
 
     df = df_ronda.copy()
+
+    # reiniciar índice (muy importante)
+    df = df.reset_index(drop=True)
 
     if "Horario" not in df.columns:
         df["Horario"] = ""
@@ -33,6 +37,7 @@ def asignar_horarios(df_ronda, historial=None):
 
     horarios_base = HORARIOS_PRINCIPALES.copy()
 
+    # activar horarios extendidos si se necesita
     if total_partidos > len(horarios_base) * MAX_PARTIDOS_IDEAL:
         horarios_base += HORARIOS_EXTENDIDOS
 
@@ -40,6 +45,7 @@ def asignar_horarios(df_ronda, historial=None):
 
         cupo = MAX_PARTIDOS_IDEAL
 
+        # si hay demasiados partidos usar límite
         if total_partidos > cupo * len(horarios_base):
             cupo = MAX_PARTIDOS_LIMITE
 
@@ -48,13 +54,14 @@ def asignar_horarios(df_ronda, historial=None):
             if indice_partido >= total_partidos:
                 break
 
-            df.loc[indice_partido, "Horario"] = hora
+            df.at[indice_partido, "Horario"] = hora
             indice_partido += 1
 
         if indice_partido >= total_partidos:
             break
 
     if df["Horario"].eq("").any():
+
         raise ValueError(
             "No fue posible asignar horarios suficientes. "
             "Aumenta horarios o reduce carga."
