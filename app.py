@@ -2,105 +2,118 @@ import streamlit as st
 import pandas as pd
 import os
 
-st.set_page_config(page_title="Torneo Parchís 2026", layout="wide")
-
-DATA_PATH = "data"
-if not os.path.exists(DATA_PATH):
-    os.makedirs(DATA_PATH)
-
-st.title("🎲 Torneo de Parchís 2026")
-st.markdown("Copia y pega los datos directamente desde Excel. No necesitas subir archivos.")
-
-menu = st.sidebar.selectbox(
-    "Menú",
-    ["Grupo 1", "Grupo 2", "Grupo 3", "Grupo 4", "Grupo 5", "Registrar Ganadores", "Siguiente Ronda"]
+# ---------------------------
+# CONFIGURACIÓN GENERAL
+# ---------------------------
+st.set_page_config(
+    page_title="Torneo Parchís 2026",
+    layout="wide",
 )
 
-def guardar_grupo(num, df):
-    df.to_csv(f"{DATA_PATH}/grupo{num}.csv", index=False)
+PALETTE = {
+    "primary": "#A38ACB",    # Lila corporativo pastel
+    "secondary": "#83A4D4",  # Azul suave corporativo
+    "accent": "#9FD8C8",     # Verde aqua pastel
+    "warning": "#F7C6A3",    # Melón pastel
+    "danger": "#F3A5A5",     # Rojo pastel profesional
+    "success": "#A4E1B9",    # Verde éxito
+    "neutral": "#F5F5F7",    # Fondo gris blanco elegante
+}
 
-def cargar_grupo(num):
-    archivo = f"{DATA_PATH}/grupo{num}.csv"
-    if os.path.exists(archivo):
-        return pd.read_csv(archivo)
+st.markdown(
+    f"""
+    <style>
+    .main {{
+        background-color: {PALETTE['neutral']};
+    }}
+    .stButton>button {{
+        background-color: {PALETTE['primary']};
+        color: white;
+        border-radius: 10px;
+        font-size: 18px;
+        padding: 10px 25px;
+        border: none;
+    }}
+    h1, h2, h3 {{
+        color: {PALETTE['primary']};
+        font-weight: 600;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+DATA_PATH = "data"
+os.makedirs(DATA_PATH, exist_ok=True)
+
+# ---------------------------
+# UTILIDADES
+# ---------------------------
+def save_group_data(group_num, df):
+    df.to_csv(f"{DATA_PATH}/grupo{group_num}.csv", index=False)
+
+def load_group_data(group_num):
+    file = f"{DATA_PATH}/grupo{group_num}.csv"
+    if os.path.exists(file):
+        return pd.read_csv(file)
     return None
 
-# --- COPIAR Y PEGAR --
-if "Grupo" in menu:
-    grupo_num = int(menu.split(" ")[1])
-    st.subheader(f"📋 Participantes del Grupo {grupo_num}")
-    st.write("Pega aquí la tabla directamente desde Excel (CTRL+C → CTRL+V):")
+# ---------------------------
+# INTERFAZ PRINCIPAL
+# ---------------------------
+st.title("🎲 Torneo Parchís 2026")
+st.subheader("Gestión profesional del torneo • Estilo pastel corporativo")
 
-    texto = st.text_area("Pega aquí los datos del grupo")
+menu = st.sidebar.radio(
+    "Navegación",
+    ["Grupo 1", "Grupo 2", "Grupo 3", "Grupo 4", "Grupo 5", "Resumen", "Ajustes"]
+)
 
-    if texto:
+# ---------------------------
+# FUNCIONES DE GRUPO
+# ---------------------------
+def group_page(group_num):
+
+    st.header(f"👥 Grupo {group_num}")
+    st.info(f"Copia y pega aquí la tabla EXACTA del Excel de la ronda del Sábado 14.")
+
+    pasted_text = st.text_area(
+        f"Pega aquí la tabla del Grupo {group_num}",
+        height=250,
+        placeholder="Pega la tabla del Excel (con horarios, IDs, jugadores, users...)"
+    )
+
+    if pasted_text:
         try:
-            df = pd.read_csv(pd.io.common.StringIO(texto), sep="\t")
+            df = pd.read_csv(pd.io.common.StringIO(pasted_text), sep="\t")
+            st.success("Vista previa de la tabla cargada:")
             st.dataframe(df)
 
-            if st.button("Guardar grupo"):
-                guardar_grupo(grupo_num, df)
-                st.success(f"Grupo {grupo_num} guardado correctamente.")
-        except:
-            st.error("La tabla no es válida. Asegúrate de copiar TODAS las columnas de Excel.")
+            if st.button("Guardar tabla del grupo"):
+                save_group_data(group_num, df)
+                st.success(f"Grupo {group_num} guardado correctamente.")
 
-    existente = cargar_grupo(grupo_num)
-    if existente is not None:
-        st.write("### Datos guardados en la nube:")
-        st.dataframe(existente)
+        except Exception as e:
+            st.error("No pudimos leer la tabla. Asegúrate que la pegaste tal cual de Excel.")
 
-# --- REGISTRAR GANADORES ---
-elif menu == "Registrar Ganadores":
-    st.subheader("🏆 Registrar Ganador del Partido")
-    grupos = []
+    st.subheader("📊 Datos guardados")
+    saved_df = load_group_data(group_num)
+    if saved_df is not None:
+        st.dataframe(saved_df)
+    else:
+        st.warning("No hay datos guardados todavía.")
 
-    # Cargar todos los grupos
-    for i in range(1, 6):
-        df = cargar_grupo(i)
-        if df is not None:
-            df["Grupo"] = i
-            grupos.append(df)
+# ---------------------------
+# ROUTING
+# ---------------------------
+if menu.startswith("Grupo"):
+    num = int(menu.split(" ")[1])
+    group_page(num)
 
-    if grupos:
-        todos = pd.concat(grupos, ignore_index=True)
+elif menu == "Resumen":
+    st.header("📊 Resumen del Torneo")
+    st.info("Aquí aparecerán los dashboards, el estado del torneo y los ganadores.")
 
-        busqueda = st.text_input("Busca por nombre, usuario o ID")
-        if busqueda:
-            filtro = todos[todos.apply(lambda x: busqueda.lower() in str(x).lower(), axis=1)]
-            st.dataframe(filtro)
-
-            if len(filtro) == 1:
-                fila = filtro.iloc[0]
-                e1 = fila["ID Grupo 1"]
-                e2 = fila["ID Grupo 2"]
-
-                ganador = st.radio("¿Quién ganó?", [e1, e2])
-
-                if st.button("Guardar ganador"):
-                    with open(f"{DATA_PATH}/resultados.csv", "a") as f:
-                        f.write(f"{ganador}\n")
-                    st.success("Ganador registrado correctamente.")
-
-# --- SIGUIENTE RONDA ---
-elif menu == "Siguiente Ronda":
-    st.subheader("🔄 Generar nueva ronda automáticamente")
-
-    if st.button("Generar"):
-        resultados = f"{DATA_PATH}/resultados.csv"
-        if not os.path.exists(resultados):
-            st.error("Aún no hay resultados registrados.")
-        else:
-            df = pd.read_csv(resultados, header=None, names=["Ganador"])
-            ganadores = df["Ganador"].tolist()
-
-            # Emparejar ganadores
-            parejas = []
-            for i in range(0, len(ganadores), 2):
-                if i+1 < len(ganadores):
-                    parejas.append([ganadores[i], ganadores[i+1]])
-
-            salida = pd.DataFrame(parejas, columns=["Equipo A", "Equipo B"])
-            salida.to_csv(f"{DATA_PATH}/ronda_siguiente.csv", index=False)
-
-            st.success("Nueva ronda generada correctamente.")
-            st.dataframe(salida)
+elif menu == "Ajustes":
+    st.header("⚙ Ajustes")
+    st.info("Aquí podrás configurar rondas, horarios y reglas.")
