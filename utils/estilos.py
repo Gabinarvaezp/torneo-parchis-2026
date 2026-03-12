@@ -2,25 +2,26 @@ import pandas as pd
 
 # Paleta corporativa pastel
 PALETTE = {
-    "ganador": "#C8F7C5",      # Verde pastel (ganó)
-    "eliminado": "#F7C6C6",    # Rojo pastel elegante (eliminado)
-    "pendiente": "#DDE7F2",    # Azul pastel suave (pendiente)
-    "fondo": "#F5F6FA",        # Fondo corporativo blanco/gris pastel
+    "ganador": "#C8F7C5",      # Verde pastel
+    "eliminado": "#F7C6C6",    # Rojo pastel
+    "pendiente": "#DDE7F2",    # Azul pastel
+    "fondo": "#F5F6FA",
 }
 
 def estado_color(row):
     """
-    Aplica colores pastel dependiendo del estado del partido.
-    Se llamará desde app.py usando styling.
+    Colorea cada fila según el estado del partido.
     """
-    color = PALETTE["pendiente"]
 
-    if "Estado" in row:
-        estado = str(row["Estado"]).lower()
+    estado = str(row.get("Estado", "pendiente")).lower()
 
-        if "ganó" in estado:
-            color = PALETTE["ganador"]
-        elif "eliminado" in estado:
-            color = PALETTE["eliminado"]
+    if estado == "ganó":
+        color = PALETTE["ganador"]
 
-    return ["background-color: {}".format(color)] * len(row)
+    elif estado == "eliminado":
+        color = PALETTE["eliminado"]
+
+    else:
+        color = PALETTE["pendiente"]
+
+    return [f"background-color: {color}"] * len(row)
