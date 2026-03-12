@@ -184,3 +184,71 @@ elif menu == "Resumen del Torneo":
 elif menu == "Ajustes":
     st.header("⚙ Ajustes del torneo")
     st.write("Aquí se configurarán horarios, límites y reglas. (Bloque C)")
+
+# ============================================================
+# RESUMEN DEL TORNEO - BLOQUE C
+# ============================================================
+
+def pagina_resumen():
+
+    st.header("📊 Resumen General del Torneo")
+
+    grupos = cargar_todos()
+
+    if not grupos:
+        st.warning("No hay datos cargados todavía.")
+        return
+
+    # TARJETAS PASTEL POR GRUPO
+    cols = st.columns(5)
+    idx = 0
+
+    for g, df in grupos.items():
+        totales = len(df)
+        gan = df[df["Estado"].str.contains("ganó", na=False)]
+        elim = df[df["Estado"].str.contains("eliminado", na=False)]
+        pend = df[df["Estado"].str.contains("pendiente", na=False)]
+
+        with cols[idx]:
+            st.markdown(
+                f"""
+                <div style="
+                    background-color:{PALETTE['secondary']};
+                    padding:20px;
+                    border-radius:12px;
+                    text-align:center;
+                    color:white;">
+                    <h3>Grupo {g}</h3>
+                    <p><b>Total:</b> {totales}</p>
+                    <p><b>Ganadores:</b> {len(gan)}</p>
+                    <p><b>Eliminados:</b> {len(elim)}</p>
+                    <p><b>Pendientes:</b> {len(pend)}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        idx = (idx + 1) % 5
+
+    st.subheader("📈 Avance por grupo")
+
+    resumen = []
+
+    for g, df in grupos.items():
+        total = len(df)
+        gan = df[df["Estado"].str.contains("ganó", na=False)]
+        elim = df[df["Estado"].str.contains("eliminado", na=False)]
+        resumen.append([g, total, len(gan), len(elim)])
+
+    res_df = pd.DataFrame(resumen, columns=["Grupo", "Total", "Ganadores", "Eliminados"])
+    st.dataframe(res_df)
+
+    # DESCARGAR EXCEL COMPLETO
+    st.subheader("📥 Exportar Torneo Completo")
+
+    if st.button("Exportar Excel Total"):
+        ok = exportar_excel_torneo()
+        if ok:
+            st.success("Excel completo generado en la carpeta /data.")
+        else:
+            st.error("No fue posible generar el Excel.")
