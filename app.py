@@ -3,6 +3,10 @@ import pandas as pd
 import os
 from io import StringIO
 
+# ============================================================
+# CONFIG
+# ============================================================
+
 st.set_page_config(
     page_title="Torneo Parchís 2026",
     page_icon="🎲",
@@ -13,7 +17,7 @@ DATA_PATH = "data"
 os.makedirs(DATA_PATH, exist_ok=True)
 
 # ============================================================
-# ESTILOS PRO
+# ESTILO (UI MÁS LIMPIA)
 # ============================================================
 
 st.markdown("""
@@ -26,46 +30,45 @@ background:#f4f6fb;
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
 
-h1{
-font-weight:700;
+.block-container{
+padding-top:2rem;
 }
 
-.card{
+.partido-card{
 background:white;
-padding:25px;
-border-radius:16px;
-box-shadow:0 5px 20px rgba(0,0,0,0.08);
+padding:20px;
+border-radius:14px;
+box-shadow:0 4px 12px rgba(0,0,0,0.08);
+margin-bottom:18px;
+}
+
+.vs{
 text-align:center;
+font-size:22px;
+font-weight:700;
+padding-top:20px;
 }
 
-.stButton>button{
-background:#6C5CE7;
-color:white;
-border:none;
-border-radius:10px;
-padding:10px 20px;
-font-weight:600;
-}
-
-.stButton>button:hover{
-background:#5649c9;
+.ganador-btn button{
+width:100%;
+font-size:18px;
+height:48px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================
-# IMPORTS
+# IMPORTS DE TU PROYECTO
 # ============================================================
 
 from utils.loader import cargar_grupo, guardar_grupo, cargar_todos
 from utils.ganadores import registrar_ganador, corregir_ganador
 from utils.validator import validar_tabla
-from utils.estilos import estado_color
 from utils.excel_exporter import exportar_excel_grupo, exportar_excel_torneo
 
 # ============================================================
-# LEER EXCEL PEGADO
+# LEER TABLA PEGADA DESDE EXCEL
 # ============================================================
 
 def leer_excel_pegado(texto):
@@ -87,26 +90,25 @@ def leer_excel_pegado(texto):
 
 
 # ============================================================
-# TARJETAS
+# ASEGURAR COLUMNA ESTADO
 # ============================================================
 
-def card(titulo, valor):
-
-    st.markdown(
-        f"""
-        <div class="card">
-        <h3>{titulo}</h3>
-        <h1>{valor}</h1>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-def tarjetas_grupo(df):
+def asegurar_estado(df):
 
     if "Estado" not in df.columns:
+
         df["Estado"] = "pendiente"
+
+    return df
+
+
+# ============================================================
+# TARJETAS DE ESTADÍSTICAS
+# ============================================================
+
+def dashboard_grupo(df):
+
+    df = asegurar_estado(df)
 
     total = len(df)
 
@@ -114,19 +116,95 @@ def tarjetas_grupo(df):
     elim = df["Estado"].str.contains("elim", case=False, na=False).sum()
     pend = total - gan - elim
 
-    c1,c2,c3,c4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
 
-    with c1:
-        card("🎮 Partidos", total)
+    c1.metric("🎮 Partidos", total)
+    c2.metric("🏆 Ganadores", gan)
+    c3.metric("❌ Eliminados", elim)
+    c4.metric("⏳ Pendientes", pend)
 
-    with c2:
-        card("🏆 Ganadores", gan)
 
-    with c3:
-        card("❌ Eliminados", elim)
+# ============================================================
+# RENDER PARTIDO (CARD)
+# ============================================================
 
-    with c4:
-        card("⏳ Pendientes", pend)
+def render_partido(n, row, idx):
+
+    g1 = row["ID Grupo 1"]
+    g2 = row["ID Grupo 2"]
+
+    u1 = row["User 1 G1"]
+    u2 = row["User 2 G1"]
+
+    u3 = row["User 1 G2"]
+    u4 = row["User 2 G2"]
+
+    estado = row["Estado"]
+
+    st.markdown('<div class="partido-card">', unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([4,1,4])
+
+    with col1:
+
+        st.markdown(f"### 🟣 {g1}")
+        st.write(u1)
+        st.write(u2)
+
+    with col2:
+
+        st.markdown('<div class="vs">VS</div>', unsafe_allow_html=True)
+
+    with col3:
+
+        st.markdown(f"### 🔵 {g2}")
+        st.write(u3)
+        st.write(u4)
+
+    b1, b2, b3 = st.columns(3)
+
+    with b1:
+
+        if st.button(f"🏆 Ganó {g1}", key=f"{idx}g1"):
+
+            registrar_ganador(n, row, g1)
+
+            st.rerun()
+
+    with b2:
+
+        if st.button(f"🏆 Ganó {g2}", key=f"{idx}g2"):
+
+            registrar_ganador(n, row, g2)
+
+            st.rerun()
+
+    with b3:
+
+        st.write(f"Estado: **{estado}**")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ============================================================
+# MOSTRAR PARTIDOS POR HORARIO
+# ============================================================
+
+def mostrar_partidos(n, df):
+
+    df = asegurar_estado(df)
+
+    horarios = df["Horario"].unique()
+
+    for h in horarios:
+
+        st.subheader(f"🕗 {h}")
+
+        partidos = df[df["Horario"] == h]
+
+        for i, row in partidos.iterrows():
+
+            render_partido(n, row, i)
 
 
 # ============================================================
@@ -137,7 +215,7 @@ def pagina_grupo(n):
 
     st.header(f"👥 Grupo {n}")
 
-    tab1, tab2 = st.tabs(["📥 Cargar tabla", "🎮 Gestionar"])
+    tab1, tab2 = st.tabs(["📥 Cargar tabla", "🎮 Partidos"])
 
     # --------------------------------------------------------
     # CARGAR TABLA
@@ -145,8 +223,10 @@ def pagina_grupo(n):
 
     with tab1:
 
+        st.info("Copia la tabla desde Excel y pégala aquí")
+
         pasted = st.text_area(
-            "Pega aquí la tabla copiada desde Excel",
+            "Tabla copiada desde Excel",
             height=250
         )
 
@@ -160,29 +240,28 @@ def pagina_grupo(n):
 
             else:
 
-                ok,msg,df = validar_tabla(df)
+                ok, msg, df = validar_tabla(df)
 
                 if ok:
 
-                    st.success("Tabla válida")
+                    df = asegurar_estado(df)
 
-                    if "Estado" not in df.columns:
-                        df["Estado"] = "pendiente"
+                    st.success("Tabla válida")
 
                     st.dataframe(df, use_container_width=True)
 
-                    if st.button("💾 Guardar tabla"):
+                    if st.button("💾 Guardar tabla grupo"):
 
                         guardar_grupo(n, df)
 
-                        st.success("Tabla guardada")
+                        st.success("Grupo guardado")
 
                 else:
 
                     st.warning(msg)
 
     # --------------------------------------------------------
-    # GESTION
+    # PARTIDOS
     # --------------------------------------------------------
 
     with tab2:
@@ -191,106 +270,17 @@ def pagina_grupo(n):
 
         if df is None:
 
-            st.warning("Aún no hay datos")
+            st.warning("Aún no hay datos del grupo")
 
             return
 
-        if "Estado" not in df.columns:
-            df["Estado"] = "pendiente"
+        df = asegurar_estado(df)
 
-        tarjetas_grupo(df)
-
-        st.subheader("📊 Partidos")
-
-        st.dataframe(
-            df.style.apply(estado_color, axis=1),
-            use_container_width=True,
-            height=500
-        )
-
-        # ----------------------------------------------------
-        # BUSCAR PARTIDO
-        # ----------------------------------------------------
+        dashboard_grupo(df)
 
         st.divider()
 
-        busqueda = st.text_input(
-            "🔎 Buscar jugador o ID",
-            placeholder="Ej: 851"
-        )
-
-        if busqueda:
-
-            fil = df[
-                df.apply(
-                    lambda r: busqueda.lower() in str(r).lower(),
-                    axis=1
-                )
-            ]
-
-            st.dataframe(fil, use_container_width=True)
-
-            if len(fil) == 1:
-
-                fila = fil.iloc[0]
-
-                e1 = fila["ID Grupo 1"]
-                e2 = fila["ID Grupo 2"]
-
-                ganador = st.radio(
-                    "Seleccionar ganador",
-                    [e1,e2],
-                    horizontal=True
-                )
-
-                if st.button("🏆 Registrar ganador"):
-
-                    registrar_ganador(
-                        n,
-                        fila,
-                        ganador
-                    )
-
-                    st.success("Resultado guardado")
-
-                    st.rerun()
-
-        # ----------------------------------------------------
-        # CORREGIR RESULTADO
-        # ----------------------------------------------------
-
-        st.divider()
-
-        st.subheader("🛠 Corregir resultado")
-
-        partido = st.text_input(
-            "Partido exacto (ej: 851 vs 850)"
-        )
-
-        nuevo = st.text_input(
-            "Nuevo ganador"
-        )
-
-        if st.button("Aplicar corrección"):
-
-            ok,msg = corregir_ganador(
-                n,
-                partido,
-                nuevo
-            )
-
-            if ok:
-
-                st.success(msg)
-                st.rerun()
-
-            else:
-
-                st.error(msg)
-
-        # ----------------------------------------------------
-        # EXPORTAR
-        # ----------------------------------------------------
+        mostrar_partidos(n, df)
 
         st.divider()
 
@@ -298,34 +288,34 @@ def pagina_grupo(n):
 
             exportar_excel_grupo(n)
 
-            st.success("Excel generado")
+            st.success("Excel generado en carpeta data")
 
 
 # ============================================================
-# RESUMEN TORNEO
+# DASHBOARD GENERAL
 # ============================================================
 
 def pagina_resumen():
 
-    st.header("📊 Dashboard del Torneo")
+    st.header("📊 Dashboard Torneo")
 
     grupos = cargar_todos()
 
     if not grupos:
 
-        st.warning("No hay datos")
+        st.warning("Aún no hay datos")
 
         return
 
     cols = st.columns(len(grupos))
 
-    for i,(g,df) in enumerate(grupos.items()):
+    for i, (g, df) in enumerate(grupos.items()):
 
-        if "Estado" not in df.columns:
-            df["Estado"] = "pendiente"
+        df = asegurar_estado(df)
 
         total = len(df)
-        gan = df["Estado"].str.contains("gan",case=False,na=False).sum()
+
+        gan = df["Estado"].str.contains("gan", case=False, na=False).sum()
 
         cols[i].metric(
             f"Grupo {g}",
@@ -335,7 +325,7 @@ def pagina_resumen():
 
     st.divider()
 
-    if st.button("📥 Exportar Excel torneo"):
+    if st.button("📥 Exportar Excel Torneo"):
 
         exportar_excel_torneo()
 
@@ -346,10 +336,10 @@ def pagina_resumen():
 # MENU
 # ============================================================
 
-st.sidebar.title("🎲 Torneo")
+st.sidebar.title("🎲 Torneo Parchís")
 
-menu = st.sidebar.radio(
-    "Menú",
+menu = st.sidebar.selectbox(
+    "Navegación",
     [
         "Grupo 1",
         "Grupo 2",
